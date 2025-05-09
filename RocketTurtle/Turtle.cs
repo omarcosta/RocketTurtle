@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.Remoting.Messaging;
+using System.Threading;
 
 namespace RocketTurtle
 {
@@ -17,6 +18,10 @@ namespace RocketTurtle
         public double Resistencia { get; set; } // Tempo de correr sem cansar
         public double Velocidade { get; set; } // Velocidade variavel
         public int Dencanso { get; set; } // Tempo de descanso
+
+        // Threads controles
+        public CancellationToken CancellationToken { get; set; }
+        public ManualResetEvent PauseEvent { get; set; }
 
         // Lista de nomes
         private static List<string> listaNomes = new List<string>
