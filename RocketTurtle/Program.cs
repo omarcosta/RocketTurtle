@@ -42,6 +42,7 @@
 using System;
 using System.Collections.Generic;
 using System.Media;
+using System.Runtime.CompilerServices;
 using System.Security.AccessControl;
 using System.Threading;
 
@@ -59,6 +60,9 @@ namespace RocketTurtle // Todas as class nesse namespace
         //private static ManualResetEvent _pauseEvent = new ManualResetEvent(true);
         // Usado para sinalizar que a thread deve parar
         //private static CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        public CancellationToken CancellationToken { get; set; }
+        public ManualResetEvent PauseEvent { get; set; }
+
         // Objeto random
         private static Random random = new Random();
 
@@ -67,51 +71,78 @@ namespace RocketTurtle // Todas as class nesse namespace
         {
 
             Console.WriteLine("--- ROCKET TURTLE ---");
-            PegarInformacoes();
+            // PegarInformacoes();
 
+            // Inicialmente será criado duas threads, uma para o jogador e outra para as tartarugas
+            // A escolha dessa arquiterua foi considerando o programa como um jogo real, e assim,
+            // Otmizando ao máximo a criação de NPC enquanto o Player escolhe um nome e a cor do seu personagem
+            Thread criarJogador = new Thread(PegarInformacoes); // Thread para criar o jogador
+            Thread criartartatugas = new Thread(() => CriarTartaruga(4)); // Thread para criar tartarugas
 
+            criarJogador.Start();
+            criartartatugas.Start();
 
+            // Espera a thread terminar antes de continuar
+            criarJogador.Join(); 
+            criartartatugas.Join();
 
-
-
-
-
-
-            /*do
-            {
             // Exibir informações           
-            Console.WriteLine(player.ExibirInfo());
+            /*Console.WriteLine(player.ExibirInfo());            
+            foreach (Turtle npc in turtles)
+                Console.WriteLine(npc.ExibirInfo());*/
             
-                CriarTartaruga(3);
-                foreach (Turtle npc in turtles) 
-                { 
-                    Console.WriteLine(npc.ExibirInfo());
-                
-                }
-            //} while (true);*/
+
+
+            Console.WriteLine("==> A grande corrida vai começar:..");
+            Console.WriteLine("==> Ajuste seu casco, e se prepare...");
+            Thread.Sleep(1000);
+            Console.WriteLine("\t> 3...");
+            Thread.Sleep(1000);
+            Console.WriteLine("\t> 2...");
+            Thread.Sleep(1000);
+            Console.WriteLine("\t> 1...");
+            Thread.Sleep(1000);
+            Console.WriteLine("\t> Vaiii...");
+            Thread.Sleep(1000);
+
+            foreach (Thread t in corredores)
+                t.Start(); // Espera todas as threads terminarem
+
+            foreach (Thread t in corredores)
+                t.Join(); // Espera todas as threads terminarem
+
+
 
             Console.ReadKey(); // FIM
         }
 
         static void PegarInformacoes()
         {
-            /*
-            player.Nome = player.GerarNome();
-            player.Cor = "..o";
-            player.Comprimento = 23.0f;
-            player.Peso = 2.0f;*/
-
+            
             // Console.Clear();
+            //player.Nome = player.GerarNome();
             Console.Write("Qual o nome da sua tartaruga?: ");
             player.Nome = Console.ReadLine();
+            //player.Cor = "Dourado como o alvorecer";
             Console.Write("Como ela é? (refência cores e detalhes): ");
             player.Cor = Console.ReadLine();
             player.Comprimento = 23.0f;
             player.Peso = 2.0f;
+            player.Posicao = 0; // Posição inicial
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            ManualResetEvent pauseEvent = new ManualResetEvent(true); // Começa não pausado]
+            player.CancellationToken = cancellationTokenSource.Token;
+            player.PauseEvent = pauseEvent;
+
+            Thread tPlayer = new Thread(() => Corrida(player)); // Usando método direto
+            corredores.Add(tPlayer);
         }
 
         static void CriarTartaruga(int quantidade)
         {
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            ManualResetEvent pauseEvent = new ManualResetEvent(true); // Começa não pausado]
+
             for (int i = 0; i < quantidade; i++)
             {
                 Turtle tartaruga = new Turtle();
@@ -119,9 +150,18 @@ namespace RocketTurtle // Todas as class nesse namespace
                 tartaruga.Cor = tartaruga.GerarColoracao();
                 tartaruga.Peso = RandomFloat(0.200f, 10); // Unidade (KG)
                 tartaruga.Comprimento = RandomFloat(5, 100);// Unidade (CM)
+                tartaruga.Posicao = 0; // Posição inicial
+                tartaruga.CancellationToken = cancellationTokenSource.Token;
+                tartaruga.PauseEvent = pauseEvent;
 
                 turtles.Add(tartaruga);
 
+            }
+
+            foreach (Turtle npc in turtles)
+            {
+                Thread t = new Thread(() => Corrida(npc)); // Usando método direto
+                corredores.Add(t);
             }
 
         }
@@ -131,8 +171,23 @@ namespace RocketTurtle // Todas as class nesse namespace
             return (float)(random.NextDouble() * (max - min) + min);
         }
 
-        private static void Corrida(object parametros)
+        private static void Corrida(Turtle corredor)
         {
+            while (corredor.Posicao <= 100) 
+            {
+                if (corredor.CancellationToken.IsCancellationRequested)
+                {
+                    Console.WriteLine($"\tDeveria cancelar {corredor.Nome}");
+                    break;
+                }
+
+                corredor.Posicao += random.Next(1, 6); // Adiciona entre 1 e 5 metros
+                Console.WriteLine($"Tartaruga: {corredor.Nome} ({Thread.CurrentThread.ManagedThreadId}) | Progresso: {corredor.Posicao}% | {100-corredor.Posicao} metros da chegada.");
+                Thread.Sleep(1000);
+
+            }
+        Console.WriteLine($"Tartaruga {corredor.Nome} ({Thread.CurrentThread.ManagedThreadId}) chegou a {corredor.Posicao} metros.");
+
             /*ParametrosFuncionario paramsFunc = (ParametrosFuncionario)parametros;
             string nome = paramsFunc.Nome;
             int tempoTotalSegundos = paramsFunc.TempoTrabalhoSegundos;
