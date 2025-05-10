@@ -16,12 +16,9 @@ namespace RocketTurtle
         // Controle
         public int Posicao { get; set; } // Posição de 0 a 100 na corrida
         public double Resistencia { get; set; } // Tempo de correr sem cansar
-        public double Velocidade { get; set; } // Velocidade variavel
-        public int Dencanso { get; set; } // Tempo de descanso
+        public int Descanso { get; set; } // Tempo de descanso
 
-        // Threads controles
-        public CancellationToken CancellationToken { get; set; }
-        public ManualResetEvent PauseEvent { get; set; }
+        
 
         // Lista de nomes
         private static List<string> listaNomes = new List<string>
@@ -34,7 +31,7 @@ namespace RocketTurtle
         };
 
         // Lista de colorações
-        private static  List<string> listaCores = new List<string>
+        private static List<string> listaCores = new List<string>
         {
             "Verde musgo com casco enferrujado",
             "Azul com tattoos de raios",
@@ -57,31 +54,28 @@ namespace RocketTurtle
             tartarugaInfo += ($"\n\tCor: {this.Cor}");
             tartarugaInfo += ($"\n\tComprimento: {this.Comprimento:F2} cm");
             tartarugaInfo += ($"\n\tPeso: {this.Peso:F2} kg");
-            
+
             return tartarugaInfo;
         }
 
         public string GerarNome()
         {
-            
+
             int i = rnd.Next(listaNomes.Count);
             string nameRnd = listaNomes[i];
             listaNomes.RemoveAt(i);
-            
+
             return nameRnd;
         }
 
         public string GerarColoracao()
         {
-            
+
             int i = rnd.Next(listaCores.Count);
             string corRnd = listaCores[i];
             listaCores.RemoveAt(i);
 
             return corRnd;
         }
-
-
-
     }
 }
