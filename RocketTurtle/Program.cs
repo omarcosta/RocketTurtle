@@ -40,6 +40,7 @@
 
 // Imports
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Media;
 using System.Threading;
@@ -54,6 +55,8 @@ namespace RocketTurtle // Todas as class nesse namespace
         // private static Turtle vencedora = new Turtle();
         // Lista para armazenar as threads das tartarugas
         private static List<Thread> corredores = new List<Thread>();
+        private static ConcurrentDictionary<int, string> classificacao = new ConcurrentDictionary<int, string>();
+        private static ConcurrentDictionary<int, string> eventos = new ConcurrentDictionary<int, string>();
         // Lista de Tartarugas NPCs
         private static List<Turtle> videoAssistantReferee = new List<Turtle>();
         // Usado para sinalizar se a thread deve estar rodando (Set) ou pausada (Reset)
@@ -63,7 +66,7 @@ namespace RocketTurtle // Todas as class nesse namespace
         private static CancellationTokenSource cts = new CancellationTokenSource();
         private static CancellationToken token = cts.Token;
         private static ManualResetEvent PauseEvent = new ManualResetEvent(true);
-        
+
         static object cancellock = new object();
 
 
@@ -80,9 +83,11 @@ namespace RocketTurtle // Todas as class nesse namespace
             Console.WriteLine("--- ROCKET TURTLE ---");
             // PegarInformacoes();
 
-            // Inicialmente será criado duas threads, uma para o jogador e outra para as tartarugas
-            // A escolha dessa arquiterua foi considerando o programa como um jogo real, e assim,
-            // Otmizando ao máximo a criação de NPC enquanto o Player escolhe um nome e a cor do seu personagem
+            // Inicialmente será criado duas threads,
+            // - Uma para o jogador (finaliza quando ele termina de digitar)
+            // - E outra para gerar as tartarugas
+            // A escolha dessa arquiterua foi considerando o programa como um jogo real, sendo assim...
+            // Buscamos otimizar ao máximo a criação de NPC enquanto o Player escolhe um nome e a cor do seu personagem
             Thread criarJogador = new Thread(PegarInformacoes); // Thread para criar o jogador
             // Thread para criar tartarugas
             Thread criartartatugas = new Thread(() => CriarTartaruga(quantidadeTartarugas)); // Máximo 10 se não falta "coloração"
@@ -94,13 +99,8 @@ namespace RocketTurtle // Todas as class nesse namespace
             criarJogador.Join();
             criartartatugas.Join();
 
-            // Exibir informações           
-            /*Console.WriteLine(player.ExibirInfo());            
-            foreach (Turtle npc in turtles)
-                Console.WriteLine(npc.ExibirInfo());*/
-
+            
             /*
-
             Console.WriteLine("==> A grande corrida vai começar:..");
             Console.WriteLine("==> Ajuste seu casco, e se prepare...");
             Thread.Sleep(1000);
@@ -114,15 +114,29 @@ namespace RocketTurtle // Todas as class nesse namespace
             Thread.Sleep(1000);
             */
 
+
+            // Criamos uma thread para a atualização do placar
+            Thread placar = new Thread(AtualizarPlacar);
+            placar.Start();
+
+            // Foi criado uma thread para cada tartaruga quando criamos a tartaruga
+            // A tartaruga do jogador também foi inclusa na lista de Threads "corredoras"
+            // Dessa forma temos 5 threads rodando em paralelo para os corredores + uma para o placar
+            // O foreach é usado para inicializar as threads
             foreach (Thread t in corredores)
                 t.Start(); // Espera todas as threads terminarem
+
+
 
             foreach (Thread t in corredores)
                 t.Join(); // Espera todas as threads terminarem
 
+            placar.Join(); // Espera pelo placar final
+
+            AtualizarPlacar();
 
             vencedora = videoAssistantReferee[0]; // Inicializa a vencedora com a primeira tartaruga da lista
-            
+
             if (videoAssistantReferee.Count > 1)
             {
                 Console.WriteLine($"\nA corrida foi acirrada,precisou até de V.A.R.");
@@ -138,48 +152,40 @@ namespace RocketTurtle // Todas as class nesse namespace
             if (vencedora.Nome == player.Nome)
                 Console.WriteLine($"\nParabéns {(player.Nome).ToUpper()}, você venceu a corrida!");
             else
-                Console.WriteLine($"\nÉ uma pena!!!\nA tartaruga {(vencedora.Nome).ToUpper()} venceu a corrida!");
-           
+                Console.WriteLine($"\nÉ uma pena, você perdeu!!!\nA tartaruga {(vencedora.Nome).ToUpper()} venceu a corrida!");
+
             Console.WriteLine(vencedora.ExibirInfo());
 
 
             //Console.ReadKey(); // FIM
         }
 
-        static void PegarInformacoes()
+        static void PegarInformacoes() // Criar o player + sua thread
         {
-
-            // Console.Clear();
-            //player.Nome = player.GerarNome();
+            // player.Nome = player.GerarNome();
             Console.Write("Qual o nome da sua tartaruga?: ");
             player.Nome = Console.ReadLine();
-            //player.Cor = "Dourado como o alvorecer";
+            // player.Cor = "Dourado como o alvorecer";
             Console.Write("Como ela é? (refência cores e detalhes): ");
             player.Cor = Console.ReadLine();
-            player.Comprimento = 23.0f;
+            // Os atributos abaixo estão fixo para agilizar a demonstração,
+            // Mas pode ser random ou pedir o usuário digitar e depois converter para o tipo correto
+            player.Comprimento = 23.0f; 
             player.Peso = 2.0f;
-            player.Posicao = 0; // Posição inicial
-            player.Descanso = 0;
-            player.Resistencia = RandomFloat(10, 31); // Tempo de correr sem cansar
-            // player.Peso = RandomFloat(0.200f, 10);
-            // CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-            // ManualResetEvent pauseEvent = new ManualResetEvent(true); // Começa não pausado]
-            // player.CancellationToken = cancellationTokenSource.Token;
-            // player.PauseEvent = pauseEvent;
+            player.Posicao = 0; // Posição inicial, sempre 0
+            player.Descanso = 0; // Sempre 0, a medida que descansa vai acumulando
+            player.Resistencia = RandomFloat(10, 51); // Tempo de correr sem cansar
 
-            //turtles.Add(player);
-
+            // Cria uma thread para o jogador e adiciona na lista de corredores
             Thread tPlayer = new Thread(() => Corrida(player)); // Usando método direto
             corredores.Add(tPlayer);
         }
 
-        static void CriarTartaruga(int quantidade)
+        static void CriarTartaruga(int quantidade) // Método para criar tartarugas + threads
         {
-            //CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-            //ManualResetEvent pauseEvent = new ManualResetEvent(true); // Começa não pausado]
-
             for (int i = 0; i < quantidade; i++)
             {
+                // Cria uma nova tartaruga com atributos random
                 Turtle tartaruga = new Turtle();
                 tartaruga.Nome = tartaruga.GerarNome();
                 tartaruga.Cor = tartaruga.GerarColoracao();
@@ -188,36 +194,26 @@ namespace RocketTurtle // Todas as class nesse namespace
                 tartaruga.Posicao = 0; // Posição inicial
                 tartaruga.Descanso = 0;
                 tartaruga.Resistencia = RandomFloat(10, 31);
-                // tartaruga.CancellationToken = cancellationTokenSource.Token;
-                //tartaruga.PauseEvent = pauseEvent;
 
-                //turtles.Add(tartaruga);
-
+                // Cria uma thread para cada tartaruga
                 Thread t = new Thread(() => Corrida(tartaruga)); // Usando método direto
                 corredores.Add(t);
 
             }
-
-            //foreach (Turtle npc in turtles)
-            //{
-            // Thread t = new Thread(() => Corrida(npc)); // Usando método direto
-            // corredores.Add(t);
-            //}
-
         }
 
-        static float RandomFloat(float min, float max)
+        static float RandomFloat(float min, float max) // Método para gerar um número random entre dois valores
         {
             return (float)(random.NextDouble() * (max - min) + min);
         }
 
-        private static void Corrida(Turtle corredor)
+        private static void Corrida(Turtle corredor) // Método para a corrida (logica do programa)
         {
+            int id = Thread.CurrentThread.ManagedThreadId;
             int tempoDescanso = 0;
             int intervencaoDivina = 0;
             // Números "Divinos" em Cultura Pop ou Religião
             List<int> numerosDivinos = new List<int> { 3, 7, 12, 33, 42, 108 };
-
 
             while (true)
             {
@@ -227,10 +223,9 @@ namespace RocketTurtle // Todas as class nesse namespace
                     //break;
 
                     corredor.Posicao += random.Next(1, 6); // Adiciona entre 1 e 5 metros
-                    //Console.WriteLine($"Tartaruga: {corredor.Nome} ({Thread.CurrentThread.ManagedThreadId}) | Progresso: {corredor.Posicao}%");
-
-
-                    
+                    ProgressoCorrida(id, corredor.Posicao, corredor.Nome);
+                    AtualizarEventos(id, $"{(corredor.Nome).ToUpper()} corre como o vento...");
+                    //Console.WriteLine($"Tartaruga: {corredor.Nome} ({id}) | Progresso: {corredor.Posicao}%");
 
 
                     // Redução de resistência
@@ -240,13 +235,14 @@ namespace RocketTurtle // Todas as class nesse namespace
                         corredor.Resistencia = corredor.Resistencia - 3;
 
                     // Evento de DESCANSO
-                    if(corredor.Resistencia <= 0) // Se a resistencia for menor ou igual a 0
+                    if (corredor.Resistencia <= 0) // Se a resistencia for menor ou igual a 0
                     {
-                        Console.WriteLine($"Tartaruga: {corredor.Nome} ({Thread.CurrentThread.ManagedThreadId}) está cansada.");
+                        // Console.WriteLine($"Tartaruga: {corredor.Nome} ({id}) está cansada.");
+                        AtualizarEventos(id, $"{(corredor.Nome).ToUpper()} está cansada.");
                         corredor.Resistencia = RandomFloat(10, 51); // Reinicia a resistencia
-                        //Console.WriteLine($"Tartaruga {corredor.Nome} ({Thread.CurrentThread.ManagedThreadId}) descansou.");
+                        // Console.WriteLine($"Tartaruga {corredor.Nome} ({id}) descansou.");
                         tempoDescanso = random.Next(1, 5); // Descanso entre 1 e 5 segundos
-                        Thread.Sleep(tempoDescanso*500); // 500 = 0,5s * Tempo de descanso, sendo um total de 2.5s
+                        Thread.Sleep(tempoDescanso * 500); // 500 = 0,5s * Tempo de descanso, sendo um total de 2.5s
                         corredor.Descanso += tempoDescanso;
                     }
 
@@ -254,15 +250,22 @@ namespace RocketTurtle // Todas as class nesse namespace
                     intervencaoDivina = random.Next(1, 500); // 1 a 500 para não ficar muito frenquênte
                     if (numerosDivinos.Contains(intervencaoDivina)) // Se o número for divino
                     {
-                        Console.WriteLine($"Tartaruga: {corredor.Nome} ({Thread.CurrentThread.ManagedThreadId}) está desacelerando sem motivo...");
+
+
+                        //Console.WriteLine($"Tartaruga: {corredor.Nome} ({id}) está desacelerando sem motivo...");
+                        AtualizarEventos(id, $"{(corredor.Nome).ToUpper()} está desacelerando sem motivo...");
                         Thread.Sleep(intervencaoDivina * 100); // 1 segundo de desaceleração
                     }
-
-                    Thread.Sleep(10); // Mudar para 1000 = 1s
+                    // Controla o intervalo de tempo entre normal da thread
+                    // Os demais eventos geram um tempo extra assim fazendo com que a tartaruga demore mais para chegar
+                    Thread.Sleep(1000); // Mudar para 1000 = 1s
                 }
                 else
+                {
+                    ProgressoCorrida(id, corredor.Posicao, (corredor.Nome).ToUpper());
+                    AtualizarEventos(id, $"{(corredor.Nome).ToUpper()} correu {corredor.Posicao} metros.");
                     break;
-
+                }
 
                 if (corredor.Posicao >= 100)
                 {
@@ -276,52 +279,62 @@ namespace RocketTurtle // Todas as class nesse namespace
                     //Thread.Sleep(100);
                     //}
 
-
-
+                    AtualizarEventos(id, $"Tartaruga: {corredor.Nome} ({id}) chegou a {corredor.Posicao} metros.");
+                    ProgressoCorrida(id, corredor.Posicao, corredor.Nome);
                     break;
                 }
-
+                //ProgressoCorrida(id, corredor.Posicao, corredor.Nome);
             }
-            Console.WriteLine($"Tartaruga: {corredor.Nome} ({Thread.CurrentThread.ManagedThreadId}) chegou a {corredor.Posicao} metros.");
+            // Console.WriteLine($"Tartaruga: {corredor.Nome} ({id}) chegou a {corredor.Posicao} metros.");
+            //ProgressoCorrida(id, corredor.Posicao, corredor.Nome);
+            //AtualizarEventos(id, $"{corredor.Nome} ({id}) chegou a {corredor.Posicao} metros.");
 
-            /*ParametrosFuncionario paramsFunc = (ParametrosFuncionario)parametros;
-            string nome = paramsFunc.Nome;
-            int tempoTotalSegundos = paramsFunc.TempoTrabalhoSegundos;
-            string msg = paramsFunc.MensagemInicio;
-            CancellationToken cancellationToken = paramsFunc.CancellationToken;
-            ManualResetEvent pauseEvent = paramsFunc.PauseEvent;
-
-            Random rnd = new Random();
-
-            Console.WriteLine($"Funcionário {nome} ({Thread.CurrentThread.ManagedThreadId}) começou a trabalhar em uma tarefa que leva {tempoTotalSegundos} segundos." +
-                $"\t\n{msg}");
-
-
-            for (int i = 0; i < tempoTotalSegundos; i++)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    Console.WriteLine($"Funcionário {nome} ({Thread.CurrentThread.ManagedThreadId}) " +
-                        $"recebeu sinal de cancelamento e vai parar.");
-                    break;
-                }
-
-                pauseEvent.WaitOne(); // Bloqueia se o evento estiver 'reset' (false)
-
-
-                Console.WriteLine($"Funcionário {nome} ({Thread.CurrentThread.ManagedThreadId}) completou etapa {i + 1}/{tempoTotalSegundos}.");
-                // Simula o tempo de trabalho para esta etapa
-                int tempo = rnd.Next(500, 1501);
-                Thread.Sleep(tempo);
-                // Thread.Sleep(1000); // 1 segundo por etapa
-            }
-
-            //Console.WriteLine($"Funcionário {nome} ({Thread.CurrentThread.ManagedThreadId}) terminou sua tarefa ou foi cancelado.");
-            Console.WriteLine($"Funcionário {nome} parou devido ao fim do expediente.");
-            */
         }
 
+        static void ProgressoCorrida(int id, int posicao, string nome)
+        {
+            string progresso = "[";
 
+            // Explicitly cast 'posicao' to double to resolve ambiguity  
+            int running = (int)(posicao / 2);           // Trunca naturalmente
+            int idle = 50 - running;
+
+            for (int i = 0; i < running; i++)
+                progresso += ":";
+
+            for (int j = 0; j < idle; j++)
+                progresso += "_";
+
+            progresso += $"] {posicao}% | {(nome).ToUpper()}";
+                        
+            progresso = $"[{id}] {progresso}";
+            classificacao[id] = progresso;
+        }
+
+        static void AtualizarEventos(int id, string msg) // Atualiza o que acontece com a tartaruga
+        {
+            string log = $"[{id}] {msg}";
+            eventos[id] = log;
+        }
+
+        static void AtualizarPlacar()
+        {
+            do // O DO While foi usado para garantir que seja iniciado pelo menos uma vez, mesmo se o sinal de cancelamento for disparado
+            {
+                Console.Clear();
+                Console.WriteLine("Classificação em tempo 'real' (x100)\n");
+
+                foreach (var c in classificacao.Values)
+                    Console.WriteLine(c);
+
+                Console.WriteLine("\nNarração (FLASH, bicho-preguiça da Zootopia):\n");
+
+                foreach (var e in eventos.Values)
+                    Console.WriteLine(e);
+
+                Thread.Sleep(800);
+            } while (!cts.IsCancellationRequested);
+        }
     }
 
 
