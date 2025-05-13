@@ -18,7 +18,10 @@ namespace RocketTurtle
         public double Resistencia { get; set; } // Tempo de correr sem cansar
         public int Descanso { get; set; } // Tempo de descanso
 
-        
+
+
+        // public ManualResetEvent PauseEvent { get; set; }
+
 
         // Lista de nomes
         private static List<string> listaNomes = new List<string>
