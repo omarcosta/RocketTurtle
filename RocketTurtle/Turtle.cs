@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.Remoting.Messaging;
-using System.Threading;
+
 
 namespace RocketTurtle
 {
-    internal class Turtle
+    class Turtle
     {
         // Atributos principais
         public string Nome { get; set; }
@@ -16,12 +15,7 @@ namespace RocketTurtle
         // Controle
         public int Posicao { get; set; } // Posição de 0 a 100 na corrida
         public double Resistencia { get; set; } // Tempo de correr sem cansar
-        public int Descanso { get; set; } // Tempo de descanso
-
-
-
-        // public ManualResetEvent PauseEvent { get; set; }
-
+        public int Descanso { get; set; } // Tempo de descanso para recuperar a resistência
 
         // Lista de nomes
         private static List<string> listaNomes = new List<string>
@@ -45,10 +39,11 @@ namespace RocketTurtle
             "Cinza grafite com olhos cibernéticos",
             "Laranja queimado com manchas de óleo",
             "Branco nevado com escamas prateadas",
-            "Turquesa cristalina com padrão tribal"
+            "Turquesa cristalina com padrão tribal",
+            "Dourada como o alvorecer"
         };
 
-        private Random rnd = new Random();
+        private static Random rnd = new Random();
 
         public string ExibirInfo()
         {
@@ -57,6 +52,7 @@ namespace RocketTurtle
             tartarugaInfo += ($"\n\tCor: {this.Cor}");
             tartarugaInfo += ($"\n\tComprimento: {this.Comprimento:F2} cm");
             tartarugaInfo += ($"\n\tPeso: {this.Peso:F2} kg");
+            tartarugaInfo += ($"\n\tPeso: {this.Descanso}s");
 
             return tartarugaInfo;
         }
